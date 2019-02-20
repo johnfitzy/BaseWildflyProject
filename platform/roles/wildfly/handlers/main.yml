@@ -1,0 +1,20 @@
+---
+
+- name: Enable and restart wildfly service
+  service:
+    name: wildfly-{{ instance }}
+    daemon_reload: yes
+    enabled: yes
+    state: restarted
+  listen:
+    - "wildfly restart needed"
+  notify: "wait for wildfly restart"
+
+- name: Wait for WildFly to be ready
+  command: "/opt/wildfly/bin/jboss-cli.sh --controller={{ bind_address }} -c ':read-attribute(name=server-state)'"
+  register: wildfly_status
+  until: wildfly_status is success and wildfly_status.stdout.find('"result" => "running"') != -1
+  retries: 10
+  delay: 5
+  changed_when: no
+  listen: "wait for wildfly restart"

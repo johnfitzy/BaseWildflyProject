@@ -1,0 +1,107 @@
+---
+
+- name: Print message
+  debug:
+    msg: "Running role for wildfly-{{ instance }}"
+
+- name: Create WildFly instance directory structure
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: wildfly
+    group: wildfly
+  with_items:
+    - /opt/wildfly-{{ instance }}
+    - /opt/wildfly-{{ instance }}/bin
+    - /opt/wildfly-{{ instance }}/configuration
+    - /opt/wildfly-{{ instance }}/deployments
+
+- name: Collect base install property file names
+  shell: "find /opt/wildfly/standalone/configuration/*.properties -type f -exec basename {} \\;"
+  register: property_files
+  changed_when: no
+
+
+- name: Collect existing property file names
+  shell: "find /opt/wildfly-{{ instance }}/configuration/*.properties -type f -exec basename {} \\; || true"
+  register: existing_property_files
+  changed_when: no
+
+- name: Copy default configuration files from base WildFly install
+  copy:
+    src: "/opt/wildfly/standalone/configuration/{{ item }}"
+    dest: "/opt/wildfly-{{ instance }}/configuration/{{ item }}"
+    remote_src: yes
+    owner: wildfly
+    group: wildfly
+  with_items:
+    - "{{ property_files.stdout_lines | difference(existing_property_files.stdout_lines) }}"
+  notify: "wildfly restart needed"
+
+- name: Check for existing standalone.xml
+  stat:
+    path: /opt/wildfly-{{ instance }}/configuration/standalone.xml
+  register: existing_standalone
+
+- name: Copy the base install standalone.xml
+  copy:
+    src: "/opt/wildfly/standalone/configuration/standalone.xml"
+    dest: "/opt/wildfly-{{ instance }}/configuration/standalone.xml"
+    remote_src: yes
+    owner: wildfly
+    group: wildfly
+  when: not existing_standalone.stat.exists
+  notify: "wildfly restart needed"
+
+- name: Copy bin files
+  template:
+    src: "{{ item }}"
+    dest: /opt/wildfly-{{ instance }}/bin/
+    owner: wildfly
+    group: wildfly
+  with_items:
+    - bin/run.sh
+    - bin/standalone.conf
+  notify: "wildfly restart needed"
+
+- name: Ensure run script is executable
+  file:
+    path: /opt/wildfly-{{ instance }}/bin/run.sh
+    mode: '0744'
+
+- name: Create service
+  template:
+    src: conf/wildfly.service.j2
+    dest: /usr/lib/systemd/system/wildfly-{{ instance }}.service
+  notify: "wildfly restart needed"
+
+- name: Create admin user
+  command: "/opt/wildfly/bin/add-user.sh -sc /opt/wildfly-{{ instance }}/configuration/ -p {{ wildfly_admin_password }} -u admin -s -e"
+  changed_when: no
+#  no_log: yes
+
+#TODO: this would really want to be in a separate instance of wildfly
+- name: Create CLI batch script
+  copy:
+    dest: "/opt/wildfly-{{ instance }}/configuration/cli"
+    content: |
+
+      if (outcome != success) of /system-property=ee8.preview.mode:read-resource
+          /system-property=ee8.preview.mode:add(value=true)
+      end-if
+
+      /interface=public:write-attribute(name=inet-address, value="${jboss.bind.address.management:{{ bind_address }}}")
+      /interface=management:write-attribute(name=inet-address, value="${jboss.bind.address.management:{{ bind_address }}}")
+
+      reload
+    owner: wildfly
+    group: wildfly
+    mode: 0640
+
+- meta: flush_handlers
+
+- name: Execute CLI batch configuration
+  command: "/opt/wildfly/bin/jboss-cli.sh --controller={{ bind_address }}:9990 -c --file=/opt/wildfly-{{ instance }}/configuration/cli --timeout=60000"
+  changed_when: no
+
+- meta: flush_handlers

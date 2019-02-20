@@ -1,0 +1,4 @@
+wildflybase ansible_connection=local
+
+[all]
+wildflybase

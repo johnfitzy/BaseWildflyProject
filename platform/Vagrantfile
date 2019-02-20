@@ -1,0 +1,52 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.require_version ">= 2.0.0"
+
+required_plugins = %w(vagrant-cachier)
+
+plugins_to_install = required_plugins.select {|plugin| not Vagrant.has_plugin? plugin}
+if not plugins_to_install.empty?
+  puts "Installing plugins: #{plugins_to_install.join(' ')}"
+  if system "vagrant plugin install #{plugins_to_install.join(' ')}"
+    exec "vagrant #{ARGV.join(' ')}"
+  else
+    abort "Installation of one or more plugins has failed. Aborting."
+  end
+end
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "centos7-ansible"
+  config.vm.box_url = "https://tools.siam.education.govt.nz/sources/centos7.box"
+  config.vm.box_check_update = false
+
+  if Vagrant.has_plugin?("vagrant-cachier")
+    config.cache.scope = :box
+    config.cache.auto_detect = false
+    config.cache.enable :yum
+  end
+
+  config.vm.synced_folder "../", "/vagrant", :mount_options => ["ro"]
+
+  config.vm.define :wildflybase, primary: true do |wildflybase|
+    wildflybase.vm.provision "shell", path: "configure-box.sh"
+    wildflybase.vm.provider "virtualbox" do |vb|
+      vb.name = "wildfly-base"
+      vb.memory = 2048
+      vb.cpus = 2
+    end
+
+    wildflybase.vm.hostname = "vagrant.wildflybase.co.nz"
+    wildflybase.vm.network :private_network, ip: "10.128.250.2", netmask: "255.0.0.0", auto_config: false
+
+    wildflybase.vm.provision "ansible_local", type: "ansible_local" do |ansible|
+      ansible.install = true
+      ansible.compatibility_mode = "2.0"
+      ansible.install_mode = "default"
+      ansible.limit = "all"
+      ansible.inventory_path = "platform/staging/vagrant/"
+      ansible.playbook = "platform/vagrant.yml"
+
+    end
+  end
+end

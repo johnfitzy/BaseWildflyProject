@@ -1,0 +1,7 @@
+127.0.0.1   vagrant.wildflybase.co.nz  vagrant localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+10.255.250.2 vagrant.wildflybase.co.nz
+10.255.250.3 app.vagrant.wildflybase.co.nz
+10.128.250.4 iam.vagrant.wildflybase.co.nz
+10.128.250.5 testharness.vagrant.wildflybase.co.nz

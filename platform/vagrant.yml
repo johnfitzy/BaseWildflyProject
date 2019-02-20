@@ -1,0 +1,10 @@
+---
+
+- hosts: all
+  become: yes
+  user: vagrant
+  pre_tasks:
+    - include_vars: "staging/vagrant/vars/secret-vars.yml"
+  roles:
+    - common
+    - {role: wildfly, bind_address: '{{ wildfly_bind_address }}', instance: 'name'}

@@ -1,0 +1,41 @@
+---
+
+- name: Create Wildfly group
+  group:
+    name: '{{ wildfly_user }}'
+    state: present
+
+- name: Create Wildfly User
+  user:
+    name: '{{ wildfly_user }}'
+    group: '{{ wildfly_group }}'
+    createhome: no
+    system: yes
+    shell: /sbin/nologin
+    state: present
+
+- name: Download Wildfly
+  get_url:
+    validate_certs: no
+    url: '{{ wildfly_download_url }}'
+    dest: '{{ download_dir }}/{{ wildfly_download_file }}'
+    timeout: 120
+  register: wildfly_dl_result
+  retries: 3
+  delay: 10
+  until: not wildfly_dl_result is failed
+
+- name: Extract WildFly
+  unarchive:
+    src: '{{ download_dir }}/{{ wildfly_download_file }}'
+    remote_src: yes
+    dest: '/opt'
+    owner: '{{ wildfly_user }}'
+    group: '{{ wildfly_group }}'
+    creates: '{{ wildfly_dir }}/bin/standalone.sh'
+
+- name: Create versionless symlink to WildFly install directory
+  file:
+    state: link
+    src: '{{ wildfly_dir }}'
+    dest: '/opt/wildfly'

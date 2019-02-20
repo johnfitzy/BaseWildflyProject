@@ -1,0 +1,10 @@
+wildfly_bind_address: 10.128.250.4
+wildfly_testharness_bind_address: 10.128.250.5
+
+wildfly_user: wildfly
+wildfly_group: wildfly
+
+wildfly_admin_user: "{{ vault_wildfly_admin_user }}"
+wildfly_admin_password: "{{ vault_wildfly_admin_password }}"
+
+download_dir: /vagrant/platform/downloads
